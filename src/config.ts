@@ -29,6 +29,9 @@ export const CONFIG = {
     flipMs: 420,
     /** Typewriter speed (ms per character). */
     typewriterMs: 28,
+    /** Headshot reveal: from blocky pixels to sharp, in this many steps / ms. */
+    depixelateSteps: 7,
+    depixelateMs: 900,
   },
 
   /** Day #1 of the daily puzzle (local date, YYYY-MM-DD). */

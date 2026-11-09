@@ -12,7 +12,8 @@ import { isSoundOn, setSound, sfx } from './sound';
 import { load, pruneDaily, save } from './storage';
 import { Autocomplete } from './ui/autocomplete';
 import { DialogueBox } from './ui/dialogue';
-import { h } from './ui/dom';
+import { depixelate } from './ui/depixelate';
+import { h, prefersReducedMotion } from './ui/dom';
 import { guessRow, headerRow } from './ui/grid';
 import { openModal } from './ui/modal';
 import { basketballSvg, ICONS, miniBallSvg, silhouetteSvg } from './ui/pixels';
@@ -637,16 +638,22 @@ export class App {
 
 // ------------------------------------------------------------------ helpers
 
-/** Headshot drawn into a tiny canvas and upscaled for a pixel look. */
+/**
+ * Headshot: drawn at full display resolution, starting blocky and
+ * sharpening in a quick stepped animation (see ui/depixelate.ts).
+ */
 function headshot(p: Player, s: Strings): HTMLElement {
   const frame = h('div', { className: 'headshot px-box' });
   const fallback = () => {
     frame.innerHTML = silhouetteSvg(s.noPhoto);
     frame.classList.add('headshot--missing');
   };
+  // Source images are 1040x760. Render at the CSS size times device pixel ratio.
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  const width = Math.round(240 * dpr);
   const canvas = h('canvas', {
-    width: 52,
-    height: 38,
+    width,
+    height: Math.round((width * 760) / 1040),
     className: 'headshot__canvas',
     role: 'img',
     'aria-label': s.photoOf(p.name),
@@ -655,10 +662,11 @@ function headshot(p: Player, s: Strings): HTMLElement {
   const img = new Image();
   img.decoding = 'async';
   img.onload = () => {
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return fallback();
-    ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    void depixelate(canvas, img, {
+      durationMs: CONFIG.animation.depixelateMs,
+      steps: CONFIG.animation.depixelateSteps,
+      reduced: prefersReducedMotion(),
+    });
   };
   img.onerror = fallback;
   img.src = CONFIG.headshotUrl(p.id);

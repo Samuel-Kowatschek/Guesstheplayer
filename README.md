@@ -158,7 +158,7 @@ All thresholds and timings live in [`src/config.ts`](src/config.ts):
 - `maxGuesses` (8)
 - `thresholds.heightInches` (2), `thresholds.ageYears` (2), `thresholds.jersey` (3), all inclusive
 - `autocomplete.minChars` (2), `autocomplete.maxSuggestions` (8)
-- `animation.*` reveal / flip / typewriter speeds
+- `animation.*` reveal / flip / typewriter speeds and the headshot depixelate animation
 - `dailyEpoch` (day #1) and `dailySalt` (change it to reshuffle all daily players)
 
 ## Deployment (GitHub Pages)
@@ -203,7 +203,7 @@ tests/               Vitest tests
 - **Messages**: own basketball-themed lines (tip-off, airball, swish, buzzer...) in the retro dialogue box; no phrases borrowed from other games.
 - **Colour blindness**: besides colour, green tiles carry a check mark and yellow tiles a tilde; the three states also differ clearly in lightness.
 - **Rows**: the newest guess is always on top.
-- **Headshots** (`cdn.nba.com`) are only shown in the end dialog, drawn into a 52x38 canvas and scaled up for a pixel look. If the image fails to load, a pixel silhouette is shown.
+- **Headshots** (`cdn.nba.com`) are only shown in the end dialog. They start as big pixel blocks and sharpen in a quick stepped animation (~0.9 s, `animation.depixelateSteps` / `depixelateMs` in `src/config.ts`) to a full-resolution image drawn for the device pixel ratio. With reduced motion the sharp image appears immediately. If the image fails to load, a pixel silhouette is shown.
 - **Sound**: muted by default; the audio context is only created after the speaker toggle is clicked.
 - **Reduced motion**: with `prefers-reduced-motion`, flips, bounce, blink and the typewriter effect are turned off.
 - **Accessibility**: ARIA combobox for the input, a live region announcing every guess in plain text (e.g. "Team LAL: wrong, same division. Height 6 feet 9: higher."), native `<dialog>` modals, visible pixel focus outlines, everything keyboard operable.

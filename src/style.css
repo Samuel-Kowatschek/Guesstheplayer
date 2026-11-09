@@ -917,7 +917,7 @@ p {
 .headshot {
   display: grid;
   place-items: center;
-  width: 216px;
+  width: 240px;
   max-width: 100%;
   aspect-ratio: 52 / 38;
   padding: 4px;
@@ -927,6 +927,9 @@ p {
 .headshot__canvas {
   width: 100%;
   height: 100%;
+  /* The canvas holds a full-resolution image; the pixel blocks of the
+     reveal animation are drawn into it, so the browser may scale smoothly. */
+  image-rendering: auto;
 }
 
 .headshot--missing svg {
