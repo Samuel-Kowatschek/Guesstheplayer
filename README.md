@@ -5,6 +5,15 @@ Guess the secret NBA player in **8 tries**. Every guess shows how close you are 
 
 Fully static (Vite + vanilla TypeScript): no backend, no live API calls in the browser.
 
+## Web app (mobile + desktop)
+
+HOOPDLE is a Progressive Web App:
+
+- **Mobile first**: tested from 320px (iPhone SE) up to tablets, portrait and landscape, with no horizontal scrolling. Touch targets are at least 40px, there are no sticky hover states on touch screens, it respects notches and the home indicator (`viewport-fit=cover` + safe-area insets), and the guess field scrolls up so the on-screen keyboard does not cover the suggestions.
+- **Installable**: "Add to Home Screen" on iOS/Android, or the install button in desktop Chrome/Edge. It then runs full screen in its own window (`manifest.webmanifest`, icons in `public/icons/`).
+- **Offline**: a small service worker (`public/sw.js`, production builds only) caches the app shell, font and data. Pages and `data/*.json` load network first, so new deployments and data refreshes show up as soon as you are online.
+- **Desktop**: wider board, full country names, mouse hover states, and you can start typing anywhere to jump into the guess field.
+
 ## How to play
 
 Type at least two letters of a player's name, pick a player from the list and submit.
@@ -178,6 +187,8 @@ scripts/
   fetch_players.py   data pipeline (run locally)
   test_fetch_players.py
 public/data/         players.json (generated) and players.sample.json
+public/sw.js         service worker (offline + install)
+public/manifest.webmanifest, public/icons/   PWA manifest and app icons
 tests/               Vitest tests
 ```
 

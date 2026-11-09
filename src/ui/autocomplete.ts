@@ -53,7 +53,17 @@ export class Autocomplete {
     });
     this.input.addEventListener('keydown', (e) => this.onKey(e));
     this.input.addEventListener('blur', () => window.setTimeout(() => this.close(), 150));
-    this.input.addEventListener('focus', () => this.update());
+    this.input.addEventListener('focus', () => {
+      this.update();
+      // Touch devices: move the field up so the on-screen keyboard does not
+      // cover the suggestion list.
+      if (window.matchMedia?.('(pointer: coarse)').matches) {
+        window.setTimeout(
+          () => this.el.scrollIntoView({ block: 'start', behavior: 'smooth' }),
+          300,
+        );
+      }
+    });
   }
 
   setExcluded(ids: ReadonlySet<number>): void {

@@ -16,4 +16,16 @@ async function boot(): Promise<void> {
   }
 }
 
+/** Service worker: installable app + offline play. Only in production builds. */
+function registerServiceWorker(): void {
+  if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return;
+  window.addEventListener('load', () => {
+    const base = import.meta.env.BASE_URL;
+    navigator.serviceWorker.register(`${base}sw.js`, { scope: base }).catch((err: unknown) => {
+      console.warn('[HOOPDLE] Service worker registration failed', err);
+    });
+  });
+}
+
+registerServiceWorker();
 void boot();

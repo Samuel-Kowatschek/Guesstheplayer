@@ -57,6 +57,16 @@ export class App {
     this.applyTheme(load<Theme>('theme', 'gb'));
     this.buildShell();
     pruneDaily(dayNumber(localDateKey()));
+    document.addEventListener('keydown', (e) => this.onGlobalKey(e));
+  }
+
+  /** Desktop convenience: start typing anywhere to jump into the guess field. */
+  private onGlobalKey(e: KeyboardEvent): void {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1 || !/\p{L}/u.test(e.key)) return;
+    if (!this.state || this.state.status !== 'playing' || this.ac.input.disabled) return;
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('input, textarea, dialog')) return;
+    this.ac.input.focus();
   }
 
   // ------------------------------------------------------------------ shell

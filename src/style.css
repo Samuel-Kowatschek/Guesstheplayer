@@ -83,6 +83,7 @@ body {
   line-height: 1.8;
   text-transform: uppercase;
   image-rendering: pixelated;
+  -webkit-tap-highlight-color: transparent;
   -webkit-font-smoothing: none;
   font-smooth: never;
 }
@@ -175,7 +176,9 @@ p {
   min-height: 100dvh;
   max-width: 680px;
   margin: 0 auto;
-  padding: 0 12px;
+  /* Respect notches / home indicator when installed as an app */
+  padding: env(safe-area-inset-top) max(12px, env(safe-area-inset-right))
+    env(safe-area-inset-bottom) max(12px, env(safe-area-inset-left));
 }
 
 .loading {
@@ -238,9 +241,12 @@ p {
 
 .btn,
 .menu__item,
-.press-start {
+.press-start,
+.ac__option {
   cursor: pointer;
   touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .btn {
@@ -256,8 +262,18 @@ p {
   box-shadow: 4px 4px 0 0 var(--ink);
 }
 
-.btn:hover {
-  background: var(--hidden);
+@media (hover: hover) {
+  .btn:hover {
+    background: var(--hidden);
+  }
+
+  .btn--primary:hover {
+    background: var(--ink-soft);
+  }
+
+  .menu__item:hover .menu__cursor {
+    visibility: visible;
+  }
 }
 
 .btn:active {
@@ -268,10 +284,6 @@ p {
 .btn--primary {
   background: var(--accent);
   color: var(--accent-ink);
-}
-
-.btn--primary:hover {
-  background: var(--ink-soft);
 }
 
 .btn--icon {
@@ -413,7 +425,6 @@ p {
   height: auto;
 }
 
-.menu__item:hover .menu__cursor,
 .menu__item:focus-visible .menu__cursor {
   visibility: visible;
 }
@@ -691,7 +702,22 @@ p {
 }
 
 .tile__value {
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+}
+
+/* Very narrow phones (iPhone SE, 320px): smaller tile text so values never wrap */
+@media (max-width: 374px) {
+  .tile {
+    font-size: 7px;
+  }
+
+  .grid-head {
+    font-size: 7px;
+  }
+
+  .topbar__title {
+    font-size: 10px;
+  }
 }
 
 .tile__value--long {
@@ -779,6 +805,50 @@ p {
 
   body {
     font-size: 11px;
+  }
+}
+
+/* Desktop: more room for the board */
+@media (min-width: 1024px) {
+  .app {
+    max-width: 760px;
+  }
+
+  .tile {
+    min-height: 74px;
+    font-size: 11px;
+  }
+
+  .tile__value--long {
+    font-size: 8px;
+  }
+
+  .dialogue__text {
+    font-size: 11px;
+  }
+
+  .main {
+    padding-top: 20px;
+  }
+}
+
+/* Phones in landscape: keep the title screen compact */
+@media (max-height: 500px) and (orientation: landscape) {
+  .title {
+    gap: 12px;
+  }
+
+  .logo {
+    flex-direction: row;
+    font-size: 32px;
+  }
+
+  .title__ball {
+    display: none;
+  }
+
+  .title__shadow {
+    display: none;
   }
 }
 
