@@ -8,12 +8,12 @@ import { ICONS } from './pixels';
 export function openModal(
   title: string,
   body: Node,
-  opts: { onClose?: () => void } = {},
+  opts: { onClose?: () => void; closeLabel?: string } = {},
 ): () => void {
   const closeBtn = h('button', {
     className: 'btn btn--icon',
     type: 'button',
-    'aria-label': 'Close',
+    'aria-label': opts.closeLabel ?? 'Close',
   });
   closeBtn.innerHTML = ICONS.close();
   const heading = h('h2', { className: 'modal__title', id: `modal-${Date.now()}` }, title);

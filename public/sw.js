@@ -4,7 +4,7 @@
  * - Everything else from this origin (hashed JS/CSS, font, icons): cache first.
  * - Cross-origin requests (player headshots) are not touched.
  */
-const CACHE = 'hoopdle-v1';
+const CACHE = 'hoopdle-v2';
 const PRECACHE = [
   './',
   './manifest.webmanifest',

@@ -1,30 +1,28 @@
 import { CONFIG } from '../config';
 import { countryCode } from '../game/countries';
 import type { AttributeKey, AttributeResult, GuessResult, Player } from '../game/types';
+import { divisionShort, type Strings } from '../i18n';
 import { sfx } from '../sound';
 import { h, prefersReducedMotion, wait } from './dom';
 import { ICONS } from './pixels';
 
-export const HEADERS: { key: AttributeKey; label: string; title: string }[] = [
-  { key: 'team', label: 'TEAM', title: 'Team' },
-  { key: 'position', label: 'POS', title: 'Position' },
-  { key: 'height', label: 'HT', title: 'Height' },
-  { key: 'age', label: 'AGE', title: 'Age' },
-  { key: 'jersey', label: 'NO.', title: 'Jersey number' },
-  { key: 'country', label: 'NAT', title: 'Country' },
-];
+const KEYS: AttributeKey[] = ['team', 'position', 'height', 'age', 'jersey', 'country'];
 
-const VERDICT = { green: 'match', yellow: 'close', gray: 'miss' } as const;
-
-export function headerRow(): HTMLElement {
+export function headerRow(s: Strings): HTMLElement {
   return h(
     'div',
     { className: 'grid-row grid-row--header', 'aria-hidden': 'true' },
-    ...HEADERS.map((c) => h('div', { className: 'grid-head', title: c.title }, c.label)),
+    ...KEYS.map((k) =>
+      h('div', { className: 'grid-head', title: s.headers[k][1] }, s.headers[k][0]),
+    ),
   );
 }
 
-function tileContent(a: AttributeResult, player: Player): HTMLElement {
+function conferenceText(a: AttributeResult, s: Strings): string {
+  return a.sub === 'East' ? s.east : s.west;
+}
+
+function tileContent(a: AttributeResult, player: Player, s: Strings): HTMLElement {
   const inner = h('div', { className: 'tile__inner' });
   if (a.key === 'country') {
     inner.append(
@@ -34,7 +32,19 @@ function tileContent(a: AttributeResult, player: Player): HTMLElement {
   } else {
     inner.append(h('span', { className: 'tile__value' }, a.display));
   }
-  if (a.sub) inner.append(h('span', { className: 'tile__sub' }, a.sub));
+  if (a.key === 'team') {
+    // Conference + division of the guessed player, so a yellow team tile
+    // ("same division") can be read directly from the board.
+    inner.append(h('span', { className: 'tile__sub' }, conferenceText(a, s)));
+    if (a.detail) {
+      inner.append(
+        h('span', { className: 'tile__div tile__div--short' }, divisionShort(a.detail)),
+        h('span', { className: 'tile__div tile__div--long' }, a.detail.toUpperCase()),
+      );
+    }
+  } else if (a.sub) {
+    inner.append(h('span', { className: 'tile__sub' }, a.sub));
+  }
   if (a.direction) {
     const arrow = h('span', { className: `tile__arrow tile__arrow--${a.direction}` });
     arrow.innerHTML = a.direction === 'up' ? ICONS.arrowUp() : ICONS.arrowDown();
@@ -48,12 +58,14 @@ function tileContent(a: AttributeResult, player: Player): HTMLElement {
   return inner;
 }
 
-function tileTitle(a: AttributeResult, player: Player): string {
-  const head = HEADERS.find((x) => x.key === a.key)!.title;
-  const value =
-    a.key === 'team' ? player.teamName : a.key === 'country' ? player.country : a.display;
-  const dir = a.direction ? ` (secret is ${a.direction === 'up' ? 'higher' : 'lower'})` : '';
-  return `${head}: ${value} - ${VERDICT[a.feedback]}${dir}`;
+function tileTitle(a: AttributeResult, player: Player, s: Strings): string {
+  const head = s.headers[a.key][1];
+  let value = a.display;
+  if (a.key === 'team')
+    value = `${player.teamName} (${conferenceText(a, s)}, ${s.division(player.division)})`;
+  if (a.key === 'country') value = player.country;
+  const dir = a.direction ? ` (${a.direction === 'up' ? s.secretHigher : s.secretLower})` : '';
+  return `${head}: ${value} - ${s.verdict[a.feedback]}${dir}`;
 }
 
 /**
@@ -64,6 +76,7 @@ export function guessRow(
   player: Player,
   result: GuessResult,
   animate: boolean,
+  s: Strings,
 ): { el: HTMLElement; done: Promise<void> } {
   const tiles = result.attributes.map((a) =>
     h(
@@ -72,9 +85,9 @@ export function guessRow(
         className: 'tile tile--hidden',
         'data-feedback': a.feedback,
         'data-key': a.key,
-        title: tileTitle(a, player),
+        title: tileTitle(a, player, s),
       },
-      tileContent(a, player),
+      tileContent(a, player, s),
     ),
   );
   const el = h(

@@ -62,6 +62,16 @@ export const ICONS = {
     ]),
   chart: () => pixelSvg(['.....##', '..##.##', '..##.##', '#.##.##', '#.##.##', '#######']),
   help: () => pixelSvg(['.###.', '#...#', '...#.', '..#..', '..#..', '.....', '..#..']),
+  link: () =>
+    pixelSvg(['...####', '..#...#', '.#..#.#', '#..#..#', '#.#..#.', '#...#..', '####...']),
+  copy: () =>
+    pixelSvg(['..#####', '..#...#', '####..#', '#.#####', '#...#..', '#...#..', '#####..']),
+  chat: () =>
+    pixelSvg(['#######', '#.....#', '#.#.#.#', '#.....#', '#######', '.##....', '.#.....']),
+  camera: () => pixelSvg(['.##....', '#######', '#..#..#', '#.#.#.#', '#..#..#', '#######']),
+  mail: () => pixelSvg(['#######', '##...##', '#.#.#.#', '#..#..#', '#.....#', '#######']),
+  share: () =>
+    pixelSvg(['...#...', '..###..', '.#.#.#.', '...#...', '#..#..#', '#.....#', '#######']),
   palette: () => pixelSvg(['.#####.', '#.#.#.#', '#######', '#.#####', '##.####', '.#####.']),
 };
 
@@ -96,7 +106,7 @@ export function miniBallSvg(): string {
 }
 
 /** 16x16 silhouette used when a headshot cannot be loaded. */
-export function silhouetteSvg(): string {
+export function silhouetteSvg(label = 'No photo available'): string {
   return pixelSvg(
     [
       '................',
@@ -117,6 +127,6 @@ export function silhouetteSvg(): string {
       '................',
     ],
     {},
-    'No photo available',
+    label,
   );
 }

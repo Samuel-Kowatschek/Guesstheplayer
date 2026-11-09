@@ -44,7 +44,8 @@ describe('team', () => {
     const r = compareTeam(lal, den);
     expect(r.feedback).toBe('gray');
     expect(r.display).toBe('LAL');
-    expect(r.sub).toBe('WEST');
+    expect(r.sub).toBe('West');
+    expect(r.detail).toBe('Pacific'); // division of the GUESSED player
   });
 });
 

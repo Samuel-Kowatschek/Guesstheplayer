@@ -35,7 +35,9 @@ export function compareTeam(guess: Player, secret: Player): AttributeResult {
     feedback,
     direction: null,
     display: guess.teamAbbr,
-    sub: guess.conference === 'East' ? 'EAST' : 'WEST',
+    // Raw values; the UI translates/abbreviates them.
+    sub: guess.conference,
+    detail: guess.division,
   };
 }
 

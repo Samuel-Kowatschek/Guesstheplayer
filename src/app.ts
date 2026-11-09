@@ -7,6 +7,7 @@ import { buildShareText } from './game/share';
 import { effectiveStreak, emptyStats, recordGame, winRate, type Stats } from './game/stats';
 import type { GuessResult, Player } from './game/types';
 import type { LoadedData } from './data';
+import { detectLang, strings, type Lang, type Strings } from './i18n';
 import { isSoundOn, setSound, sfx } from './sound';
 import { load, pruneDaily, save } from './storage';
 import { Autocomplete } from './ui/autocomplete';
@@ -15,15 +16,11 @@ import { h } from './ui/dom';
 import { guessRow, headerRow } from './ui/grid';
 import { openModal } from './ui/modal';
 import { basketballSvg, ICONS, miniBallSvg, silhouetteSvg } from './ui/pixels';
+import { openShareMenu } from './ui/shareMenu';
 
 type Theme = 'gb' | 'gbc';
-
-const MISS_LINES = [
-  'A wild GUESS appeared!',
-  "It's not very effective...",
-  'The guess missed!',
-  'Not quite! Try again.',
-];
+/** Blue colour handheld palette is the default; green is the alternative. */
+const DEFAULT_THEME: Theme = 'gbc';
 
 export class App {
   private players: Player[];
@@ -32,6 +29,8 @@ export class App {
   private state: GameState | null = null;
   private results: GuessResult[] = [];
   private busy = false;
+  private lang: Lang;
+  private s: Strings;
 
   private main: HTMLElement;
   private live: HTMLElement;
@@ -41,7 +40,6 @@ export class App {
   private lives!: HTMLElement;
   private inputBox!: HTMLElement;
   private endActions!: HTMLElement;
-  private modeLabel!: HTMLElement;
   private menuBtn!: HTMLButtonElement;
 
   constructor(
@@ -51,10 +49,17 @@ export class App {
     this.players = data.players;
     this.byId = new Map(this.players.map((p) => [p.id, p]));
     this.knownIds = new Set(this.byId.keys());
+    this.lang = detectLang(
+      load<unknown>('lang', null),
+      navigator.languages ?? [navigator.language],
+    );
+    this.s = strings(this.lang);
+    document.documentElement.lang = this.lang;
     this.ac = new Autocomplete(this.players, (p) => void this.submit(p));
     this.main = h('main', { id: 'main', className: 'main', tabindex: '-1' });
     this.live = h('div', { className: 'sr-only', 'aria-live': 'polite', role: 'status' });
-    this.applyTheme(load<Theme>('theme', 'gb'));
+    const theme = load<Theme>('theme', DEFAULT_THEME);
+    this.applyTheme(theme === 'gb' ? 'gb' : 'gbc');
     this.buildShell();
     pruneDaily(dayNumber(localDateKey()));
     document.addEventListener('keydown', (e) => this.onGlobalKey(e));
@@ -72,8 +77,12 @@ export class App {
   // ------------------------------------------------------------------ shell
 
   private buildShell(): void {
-    this.menuBtn = this.iconButton(ICONS.cursor(), 'Back to title', () => this.showTitle());
+    const s = this.s;
+    this.ac.setTexts(s.placeholder, s.matchingPlayers);
+    this.menuBtn = this.iconButton(ICONS.cursor(), s.backToTitle, () => this.showTitle());
     this.menuBtn.classList.add('btn--back');
+    this.menuBtn.hidden = this.state === null;
+
     const soundBtn = this.iconButton('', '', () => {
       setSound(!isSoundOn());
       syncSound();
@@ -81,14 +90,24 @@ export class App {
     });
     const syncSound = () => {
       soundBtn.innerHTML = isSoundOn() ? ICONS.speakerOn() : ICONS.speakerOff();
-      soundBtn.setAttribute(
-        'aria-label',
-        isSoundOn() ? 'Sound on (click to mute)' : 'Sound off (click to unmute)',
-      );
+      soundBtn.setAttribute('aria-label', isSoundOn() ? s.soundOnLabel : s.soundOffLabel);
       soundBtn.setAttribute('aria-pressed', String(isSoundOn()));
-      soundBtn.title = isSoundOn() ? 'Sound: on' : 'Sound: off';
+      soundBtn.title = isSoundOn() ? s.soundOnTitle : s.soundOffTitle;
     };
     syncSound();
+
+    const langBtn = h(
+      'button',
+      {
+        className: 'btn btn--icon btn--lang',
+        type: 'button',
+        'aria-label': s.switchLang,
+        title: s.switchLang,
+        lang: this.lang === 'de' ? 'en' : 'de',
+      },
+      s.langButton,
+    );
+    langBtn.addEventListener('click', () => this.toggleLang());
 
     const header = h(
       'header',
@@ -98,9 +117,10 @@ export class App {
       h(
         'div',
         { className: 'topbar__actions' },
-        this.iconButton(ICONS.help(), 'How to play', () => this.showHelp()),
-        this.iconButton(ICONS.chart(), 'Statistics', () => this.showStats()),
-        this.iconButton(ICONS.palette(), 'Switch colour theme', () => this.toggleTheme()),
+        langBtn,
+        this.iconButton(ICONS.help(), s.howToPlay, () => this.showHelp()),
+        this.iconButton(ICONS.chart(), s.statistics, () => this.showStats()),
+        this.iconButton(ICONS.palette(), s.switchTheme, () => this.toggleTheme()),
         soundBtn,
       ),
     );
@@ -108,12 +128,12 @@ export class App {
     const footer = h(
       'footer',
       { className: 'footer' },
-      h('span', {}, `DATA: SEASON ${this.data.season}${this.data.isSample ? ' (SAMPLE)' : ''}`),
-      h('span', {}, 'FAN PROJECT. NOT AFFILIATED WITH THE NBA.'),
+      h('span', {}, s.dataSeason(this.data.season, this.data.isSample)),
+      h('span', {}, s.disclaimer),
     );
 
     this.root.replaceChildren(
-      h('a', { className: 'skip-link', href: '#main' }, 'Skip to game'),
+      h('a', { className: 'skip-link', href: '#main' }, s.skipLink),
       header,
       this.main,
       footer,
@@ -151,9 +171,24 @@ export class App {
     sfx.move();
   }
 
+  /** Switches DE/EN and re-renders the current screen (no state is lost). */
+  private toggleLang(): void {
+    if (this.busy) return;
+    this.lang = this.lang === 'de' ? 'en' : 'de';
+    this.s = strings(this.lang);
+    document.documentElement.lang = this.lang;
+    save('lang', this.lang);
+    sfx.move();
+    this.buildShell();
+    if (this.state) this.startGame(this.state);
+    else this.showTitle();
+    (this.root.querySelector('.btn--lang') as HTMLElement | null)?.focus();
+  }
+
   // ------------------------------------------------------------------ title
 
   showTitle(): void {
+    const s = this.s;
     this.state = null;
     this.menuBtn.hidden = true;
     const ball = h('div', { className: 'title__ball' });
@@ -171,7 +206,7 @@ export class App {
       return b;
     };
 
-    const start = h('button', { className: 'press-start', type: 'button' }, 'PRESS START');
+    const start = h('button', { className: 'press-start', type: 'button' }, s.pressStart);
     const startCursor = h('span', {
       className: 'press-start__cursor blink',
       'aria-hidden': 'true',
@@ -199,14 +234,14 @@ export class App {
         ball,
         h('div', { className: 'title__shadow', 'aria-hidden': 'true' }),
       ),
-      h('p', { className: 'title__tag' }, 'GUESS THE NBA PLAYER IN 8 TRIES'),
+      h('p', { className: 'title__tag' }, s.tagline(CONFIG.maxGuesses)),
       h(
         'nav',
-        { className: 'menu px-box', 'aria-label': 'Main menu' },
-        menuItem(`DAILY #${day}`, () => this.startDaily()),
-        menuItem('FREE PLAY', () => this.startFree()),
-        menuItem('HOW TO PLAY', () => this.showHelp()),
-        menuItem('STATS', () => this.showStats()),
+        { className: 'menu px-box', 'aria-label': s.mainMenu },
+        menuItem(s.daily(day), () => this.startDaily()),
+        menuItem(s.freePlay, () => this.startFree()),
+        menuItem(s.howToPlayMenu, () => this.showHelp()),
+        menuItem(s.statsMenu, () => this.showStats()),
       ),
       start,
     );
@@ -249,22 +284,19 @@ export class App {
   }
 
   private startGame(state: GameState): void {
+    const s = this.s;
     this.state = state;
     this.persist();
     this.menuBtn.hidden = false;
     const secret = this.secret();
     this.results = state.guessIds.map((id) => compareGuess(this.byId.get(id)!, secret));
 
-    this.modeLabel = h('span', {}, state.mode === 'daily' ? `DAILY #${state.day}` : 'FREE PLAY');
+    const modeLabel = h('span', {}, state.mode === 'daily' ? s.daily(state.day ?? 0) : s.freePlay);
     this.lives = h('div', { className: 'lives', role: 'img' });
-    this.list = h('ol', { className: 'guesses', 'aria-label': 'Your guesses, newest first' });
+    this.list = h('ol', { className: 'guesses', 'aria-label': s.guessesList });
 
-    const label = h(
-      'label',
-      { className: 'inputbox__label', for: this.ac.input.id },
-      'GUESS A PLAYER:',
-    );
-    const guessBtn = h('button', { className: 'btn', type: 'button' }, 'GUESS');
+    const label = h('label', { className: 'inputbox__label', for: this.ac.input.id }, s.guessLabel);
+    const guessBtn = h('button', { className: 'btn', type: 'button' }, s.guessButton);
     guessBtn.addEventListener('click', () => {
       const p = this.ac.current();
       if (p) {
@@ -272,7 +304,7 @@ export class App {
         void this.submit(p);
       } else {
         sfx.error();
-        this.dialogue.say('Pick a player from the list first!');
+        this.dialogue.say(s.pickFirst);
         this.ac.input.focus();
       }
     });
@@ -287,28 +319,24 @@ export class App {
     this.main.replaceChildren(
       h(
         'section',
-        { className: 'game', 'aria-label': 'Game board' },
-        h('div', { className: 'statusline' }, this.modeLabel, this.lives),
+        { className: 'game', 'aria-label': s.gameBoard },
+        h('div', { className: 'statusline' }, modeLabel, this.lives),
         this.dialogue.el,
         this.inputBox,
         this.endActions,
-        h('div', { className: 'board' }, headerRow(), this.list),
+        h('div', { className: 'board' }, headerRow(s), this.list),
       ),
     );
 
     for (let i = this.results.length - 1; i >= 0; i--) {
-      this.list.append(guessRow(this.byId.get(state.guessIds[i]!)!, this.results[i]!, false).el);
+      this.list.append(guessRow(this.byId.get(state.guessIds[i]!)!, this.results[i]!, false, s).el);
     }
     this.ac.setExcluded(new Set(state.guessIds));
     this.renderLives();
 
     if (state.status === 'playing') {
       this.ac.setDisabled(false);
-      this.dialogue.say(
-        state.guessIds.length === 0
-          ? 'A wild PLAYER appeared! Who is it?'
-          : `Welcome back! ${this.left()} guesses left.`,
-      );
+      this.dialogue.say(state.guessIds.length === 0 ? s.intro : s.welcomeBack(this.left()));
       this.ac.input.focus({ preventScroll: true });
     } else {
       this.showEndState(false);
@@ -327,14 +355,14 @@ export class App {
     const used = this.state?.guessIds.length ?? 0;
     this.lives.setAttribute(
       'aria-label',
-      `Guess ${Math.min(used + 1, CONFIG.maxGuesses)} of ${CONFIG.maxGuesses}`,
+      this.s.livesLabel(Math.min(used + 1, CONFIG.maxGuesses), CONFIG.maxGuesses),
     );
     this.lives.replaceChildren(
       h('span', { className: 'lives__count' }, `${used}/${CONFIG.maxGuesses}`),
       ...Array.from({ length: CONFIG.maxGuesses }, (_, i) => {
-        const s = h('span', { className: `lives__ball${i < used ? ' is-used' : ''}` });
-        s.innerHTML = miniBallSvg();
-        return s;
+        const el = h('span', { className: `lives__ball${i < used ? ' is-used' : ''}` });
+        el.innerHTML = miniBallSvg();
+        return el;
       }),
     );
   }
@@ -343,6 +371,7 @@ export class App {
 
   private async submit(player: Player): Promise<void> {
     if (!this.state || this.busy) return;
+    const s = this.s;
     let next: GameState;
     try {
       next = applyGuess(this.state, player.id, CONFIG.maxGuesses);
@@ -350,7 +379,7 @@ export class App {
       if (e instanceof GuessError) {
         sfx.error();
         this.dialogue.say(
-          e.message === 'Already guessed' ? `${player.name} was already guessed!` : e.message,
+          e.message === 'Already guessed' ? s.alreadyGuessed(player.name) : s.gameOverError,
         );
         return;
       }
@@ -367,21 +396,19 @@ export class App {
     this.ac.setExcluded(new Set(next.guessIds));
     this.renderLives();
 
-    const row = guessRow(player, result, true);
+    const row = guessRow(player, result, true, s);
     this.list.prepend(row.el);
-    this.dialogue.say(`You guessed ${player.name}...`);
+    this.dialogue.say(s.shotTaken(player.name));
     await row.done;
-    this.announce(describeGuess(player.name, result, player.heightInches));
+    this.announce(describeGuess(player.name, result, player.heightInches, s.a11y));
     this.busy = false;
 
     if (next.status === 'playing') {
       this.ac.setDisabled(false);
       const hits = result.attributes.filter((a) => a.feedback !== 'gray').length;
       const line =
-        hits >= 4
-          ? "It's effective! Getting close."
-          : MISS_LINES[next.guessIds.length % MISS_LINES.length]!;
-      this.dialogue.say(`${line} ${this.left()} ${this.left() === 1 ? 'guess' : 'guesses'} left.`);
+        hits >= 4 ? s.closeLine : s.missLines[next.guessIds.length % s.missLines.length]!;
+      this.dialogue.say(`${line} ${s.left(this.left())}`);
       this.ac.input.focus({ preventScroll: true });
     } else {
       this.finishGame();
@@ -389,42 +416,39 @@ export class App {
   }
 
   private finishGame(): void {
-    const s = this.state!;
-    if (s.mode === 'daily' && s.day !== undefined) {
+    const st = this.state!;
+    if (st.mode === 'daily' && st.day !== undefined) {
       const stats = recordGame(this.loadStats(), {
-        day: s.day,
-        won: s.status === 'won',
-        guesses: s.guessIds.length,
+        day: st.day,
+        won: st.status === 'won',
+        guesses: st.guessIds.length,
       });
       save('stats', stats);
     }
-    if (s.status === 'won') sfx.win();
+    if (st.status === 'won') sfx.win();
     else sfx.lose();
     this.showEndState(true);
   }
 
   private showEndState(openDialog: boolean): void {
-    const s = this.state!;
+    const s = this.s;
+    const st = this.state!;
     const secret = this.secret();
     this.ac.setDisabled(true);
     this.inputBox.hidden = true;
-    const msg =
-      s.status === 'won'
-        ? `It's super effective! It was ${secret.name}!`
-        : `Game over... It was ${secret.name}.`;
+    const msg = st.status === 'won' ? s.win(secret.name) : s.loss(secret.name);
     this.dialogue.say(msg);
     this.announce(msg);
 
-    const results = h('button', { className: 'btn', type: 'button' }, 'RESULTS');
+    const results = h('button', { className: 'btn', type: 'button' }, s.results);
     results.addEventListener('click', () => this.showEnd());
-    const share = this.shareButton();
     const again = h(
       'button',
       { className: 'btn btn--primary', type: 'button' },
-      s.mode === 'free' ? 'NEW GAME' : 'FREE PLAY',
+      st.mode === 'free' ? s.newGame : s.freePlay,
     );
     again.addEventListener('click', () => this.startFree(true));
-    this.endActions.replaceChildren(results, share, again);
+    this.endActions.replaceChildren(results, this.shareButton(), again);
     this.endActions.hidden = false;
 
     if (openDialog) window.setTimeout(() => this.showEnd(), 600);
@@ -433,77 +457,73 @@ export class App {
 
   // ------------------------------------------------------------------ dialogs
 
-  private shareText(): string {
-    const s = this.state!;
-    return buildShareText({
-      mode: s.mode,
-      dayNumber: s.day,
-      results: this.results,
-      won: s.status === 'won',
-      maxGuesses: CONFIG.maxGuesses,
-      url: `${location.origin}${import.meta.env.BASE_URL}`,
-    });
-  }
-
   private shareButton(): HTMLButtonElement {
-    const b = h('button', { className: 'btn', type: 'button' }, 'SHARE');
-    b.addEventListener('click', async () => {
-      const ok = await copyText(this.shareText());
-      b.textContent = ok ? 'COPIED!' : 'COPY FAILED';
-      this.announce(ok ? 'Result copied to clipboard' : 'Could not copy to clipboard');
+    const b = h(
+      'button',
+      { className: 'btn', type: 'button', 'aria-haspopup': 'dialog' },
+      this.s.share,
+    );
+    b.addEventListener('click', () => {
+      const st = this.state!;
       sfx.submit();
-      window.setTimeout(() => (b.textContent = 'SHARE'), 1800);
+      openShareMenu({
+        text: buildShareText({
+          mode: st.mode,
+          dayNumber: st.day,
+          results: this.results,
+          won: st.status === 'won',
+          maxGuesses: CONFIG.maxGuesses,
+        }),
+        url: `${location.origin}${import.meta.env.BASE_URL}`,
+        s: this.s,
+        announce: (m) => this.announce(m),
+      });
     });
     return b;
   }
 
   private showEnd(): void {
-    const s = this.state;
-    if (!s || s.status === 'playing') return;
+    const s = this.s;
+    const st = this.state;
+    if (!st || st.status === 'playing') return;
     const p = this.secret();
-    const won = s.status === 'won';
+    const won = st.status === 'won';
 
     const body = h(
       'div',
       { className: 'end' },
-      headshot(p),
+      headshot(p, s),
       h('p', { className: 'end__name' }, p.name.toUpperCase()),
       h('p', { className: 'end__team' }, `${p.teamName.toUpperCase()} #${p.jersey}`),
       h(
         'p',
         { className: 'end__score' },
-        won
-          ? `SOLVED IN ${s.guessIds.length}/${CONFIG.maxGuesses}`
-          : `NO LUCK THIS TIME (X/${CONFIG.maxGuesses})`,
+        won ? s.solvedIn(st.guessIds.length, CONFIG.maxGuesses) : s.noLuck(CONFIG.maxGuesses),
       ),
     );
     const actions = h('div', { className: 'end__actions' }, this.shareButton());
-    if (s.mode === 'free') {
-      const again = h('button', { className: 'btn btn--primary', type: 'button' }, 'NEW GAME');
-      again.addEventListener('click', () => {
-        close();
-        this.startFree(true);
-      });
-      actions.append(again);
-    } else {
-      body.append(this.statsBlock(), countdown());
-      const free = h('button', { className: 'btn btn--primary', type: 'button' }, 'FREE PLAY');
-      free.addEventListener('click', () => {
-        close();
-        this.startFree(true);
-      });
-      actions.append(free);
-    }
+    const again = h(
+      'button',
+      { className: 'btn btn--primary', type: 'button' },
+      st.mode === 'free' ? s.newGame : s.freePlay,
+    );
+    again.addEventListener('click', () => {
+      close();
+      this.startFree(true);
+    });
+    if (st.mode === 'daily') body.append(this.statsBlock(), countdown(s));
+    actions.append(again);
     body.append(actions);
-    const close = openModal(won ? 'YOU WIN!' : 'GAME OVER', body);
+    const close = openModal(won ? s.youWin : s.gameOver, body, { closeLabel: s.close_ });
   }
 
   private loadStats(): Stats {
-    const s = load<Stats | null>('stats', null);
-    return s && Array.isArray(s.distribution) ? s : emptyStats(CONFIG.maxGuesses);
+    const st = load<Stats | null>('stats', null);
+    return st && Array.isArray(st.distribution) ? st : emptyStats(CONFIG.maxGuesses);
   }
 
   private statsBlock(): HTMLElement {
+    const s = this.s;
     const stats = this.loadStats();
     const today = dayNumber(localDateKey());
     const tile = (value: string | number, label: string) =>
@@ -522,19 +542,19 @@ export class App {
       h(
         'div',
         { className: 'stats__row' },
-        tile(stats.played, 'PLAYED'),
-        tile(`${winRate(stats)}%`, 'WIN %'),
-        tile(effectiveStreak(stats, today), 'STREAK'),
-        tile(stats.maxStreak, 'MAX'),
+        tile(stats.played, s.played),
+        tile(`${winRate(stats)}%`, s.winPct),
+        tile(effectiveStreak(stats, today), s.streak),
+        tile(stats.maxStreak, s.maxStreak),
       ),
-      h('h3', { className: 'stats__title' }, 'GUESS DISTRIBUTION'),
+      h('h3', { className: 'stats__title' }, s.distribution),
       h(
         'ol',
-        { className: 'dist', 'aria-label': 'Wins by number of guesses' },
+        { className: 'dist', 'aria-label': s.distributionLabel },
         ...stats.distribution.map((n, i) =>
           h(
             'li',
-            { className: 'dist__row', 'aria-label': `${i + 1} guesses: ${n} wins` },
+            { className: 'dist__row', 'aria-label': s.distRow(i + 1, n) },
             h('span', { className: 'dist__n', 'aria-hidden': 'true' }, String(i + 1)),
             h(
               'span',
@@ -548,15 +568,16 @@ export class App {
           ),
         ),
       ),
-      h('p', { className: 'stats__note' }, 'STATS COUNT DAILY GAMES ONLY.'),
+      h('p', { className: 'stats__note' }, s.statsNote),
     );
   }
 
   showStats(): void {
-    openModal('STATISTICS', this.statsBlock());
+    openModal(this.s.statsTitle, this.statsBlock(), { closeLabel: this.s.close_ });
   }
 
   showHelp(): void {
+    const s = this.s;
     const legend = (fb: string, title: string, text: string) => {
       const sw = h('span', {
         className: `legend__swatch tile tile--revealed`,
@@ -578,35 +599,21 @@ export class App {
     const body = h(
       'div',
       { className: 'help' },
-      h('p', {}, `FIND THE SECRET NBA PLAYER IN ${CONFIG.maxGuesses} GUESSES.`),
-      h('p', {}, 'TYPE A NAME, PICK A PLAYER FROM THE LIST. EACH GUESS SHOWS HOW CLOSE YOU ARE:'),
+      h('p', {}, s.helpGoal(CONFIG.maxGuesses)),
+      h('p', {}, s.helpHow),
       h(
         'ul',
         { className: 'legend' },
-        legend('green', 'GREEN', '= EXACT MATCH'),
-        legend('yellow', 'YELLOW', '= CLOSE'),
-        legend('gray', 'DARK', '= NO MATCH'),
+        legend('green', s.green, s.exact),
+        legend('yellow', s.yellow, s.close),
+        legend('gray', s.dark, s.noMatch),
       ),
-      h(
-        'ul',
-        { className: 'rules' },
-        h('li', {}, 'TEAM: YELLOW = SAME DIVISION. SMALL TEXT SHOWS THE CONFERENCE.'),
-        h('li', {}, 'POS: YELLOW = SHARES A POSITION (G VS G-F).'),
-        h('li', {}, `HT: YELLOW = WITHIN ${CONFIG.thresholds.heightInches} INCHES.`),
-        h('li', {}, `AGE: YELLOW = WITHIN ${CONFIG.thresholds.ageYears} YEARS.`),
-        h('li', {}, `NO.: YELLOW = JERSEY WITHIN ${CONFIG.thresholds.jersey}.`),
-        h('li', {}, 'NAT: YELLOW = SAME CONTINENT.'),
-        h('li', {}, 'ARROWS SHOW IF THE SECRET VALUE IS HIGHER OR LOWER.'),
-      ),
-      example ? h('h3', { className: 'help__example-title' }, 'EXAMPLE') : null,
+      h('ul', { className: 'rules' }, ...s.rules(CONFIG.thresholds).map((r) => h('li', {}, r))),
+      example ? h('h3', { className: 'help__example-title' }, s.example) : null,
       example,
-      h(
-        'p',
-        {},
-        'DAILY: SAME PLAYER FOR EVERYONE, NEW ONE AT MIDNIGHT (LOCAL TIME). FREE PLAY: UNLIMITED RANDOM ROUNDS.',
-      ),
+      h('p', {}, s.helpModes),
     );
-    openModal('HOW TO PLAY', body);
+    openModal(s.helpTitle, body, { closeLabel: s.close_ });
   }
 
   /** Example: two fixed players from the data, compared statically. */
@@ -618,11 +625,11 @@ export class App {
       sorted.find((p) => p.id !== guess.id && p.division === guess.division) ??
       sorted.find((p) => p.id !== guess.id)!;
     const result = compareGuess(guess, secret);
-    const row = guessRow(guess, result, false).el;
+    const row = guessRow(guess, result, false, this.s).el;
     return h(
       'div',
       { className: 'board board--example' },
-      headerRow(),
+      headerRow(this.s),
       h('ol', { className: 'guesses' }, row),
     );
   }
@@ -630,31 +637,11 @@ export class App {
 
 // ------------------------------------------------------------------ helpers
 
-async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    const ta = h('textarea', { 'aria-hidden': 'true', className: 'sr-only' });
-    ta.value = text;
-    document.body.append(ta);
-    ta.select();
-    let ok: boolean;
-    try {
-      ok = document.execCommand('copy');
-    } catch {
-      ok = false;
-    }
-    ta.remove();
-    return ok;
-  }
-}
-
 /** Headshot drawn into a tiny canvas and upscaled for a pixel look. */
-function headshot(p: Player): HTMLElement {
+function headshot(p: Player, s: Strings): HTMLElement {
   const frame = h('div', { className: 'headshot px-box' });
   const fallback = () => {
-    frame.innerHTML = silhouetteSvg();
+    frame.innerHTML = silhouetteSvg(s.noPhoto);
     frame.classList.add('headshot--missing');
   };
   const canvas = h('canvas', {
@@ -662,7 +649,7 @@ function headshot(p: Player): HTMLElement {
     height: 38,
     className: 'headshot__canvas',
     role: 'img',
-    'aria-label': `Photo of ${p.name}`,
+    'aria-label': s.photoOf(p.name),
   });
   frame.append(canvas);
   const img = new Image();
@@ -678,7 +665,7 @@ function headshot(p: Player): HTMLElement {
   return frame;
 }
 
-function countdown(): HTMLElement {
+function countdown(s: Strings): HTMLElement {
   const el = h('p', { className: 'countdown' });
   const tick = () => {
     if (!el.isConnected && el.dataset.started) return window.clearInterval(timer);
@@ -689,7 +676,7 @@ function countdown(): HTMLElement {
     const hh = String(Math.floor(ms / 3_600_000)).padStart(2, '0');
     const mm = String(Math.floor((ms / 60_000) % 60)).padStart(2, '0');
     const ss = String(Math.floor((ms / 1000) % 60)).padStart(2, '0');
-    el.textContent = `NEXT PLAYER IN ${hh}:${mm}:${ss}`;
+    el.textContent = s.nextIn(`${hh}:${mm}:${ss}`);
   };
   const timer = window.setInterval(tick, 1000);
   tick();

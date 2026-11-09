@@ -66,6 +66,12 @@ export class Autocomplete {
     });
   }
 
+  /** Updates translated texts. */
+  setTexts(placeholder: string, listLabel: string): void {
+    this.input.placeholder = placeholder;
+    this.list.setAttribute('aria-label', listLabel);
+  }
+
   setExcluded(ids: ReadonlySet<number>): void {
     this.exclude = ids;
   }

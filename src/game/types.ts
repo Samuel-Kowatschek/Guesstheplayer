@@ -39,8 +39,10 @@ export interface AttributeResult {
   direction: Direction;
   /** Main text shown on the tile. */
   display: string;
-  /** Optional small secondary text (e.g. conference). */
+  /** Optional small secondary text (team tile: conference). */
   sub?: string;
+  /** Optional extra detail (team tile: division of the guessed player). */
+  detail?: string;
 }
 
 export interface GuessResult {
