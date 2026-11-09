@@ -5,6 +5,10 @@ Guess the secret NBA player in **8 tries**. Every guess shows how close you are 
 
 Fully static (Vite + vanilla TypeScript): no backend, no live API calls in the browser.
 
+## Languages
+
+All screens are available in **English and German**. The language is picked from the browser (`de-*` -> German, everything else -> English) and can be switched with the **DE/EN** button in the top bar; the choice is remembered. All texts live in [`src/i18n.ts`](src/i18n.ts). Player, team and country names come from the data and are not translated.
+
 ## Web app (mobile + desktop)
 
 HOOPDLE is a Progressive Web App:
@@ -19,14 +23,14 @@ HOOPDLE is a Progressive Web App:
 Type at least two letters of a player's name, pick a player from the list and submit.
 Each guess becomes a row of six tiles:
 
-| Tile     | GREEN (check mark) | YELLOW (tilde)               | DARK (no symbol)                                |
-| -------- | ------------------ | ---------------------------- | ----------------------------------------------- |
-| **TEAM** | same team          | same division                | otherwise (the small text shows the conference) |
-| **POS**  | same position      | shares a position (G vs G-F) | otherwise                                       |
-| **HT**   | same height        | within 2 inches              | otherwise                                       |
-| **AGE**  | same age           | within 2 years               | otherwise                                       |
-| **NO.**  | same jersey        | within 3 (also `0` vs `00`)  | otherwise                                       |
-| **NAT**  | same country       | same continent               | otherwise                                       |
+| Tile     | GREEN (check mark) | YELLOW (tilde)               | DARK (no symbol)                                            |
+| -------- | ------------------ | ---------------------------- | ----------------------------------------------------------- |
+| **TEAM** | same team          | same division                | otherwise (small text: conference + division of your guess) |
+| **POS**  | same position      | shares a position (G vs G-F) | otherwise                                                   |
+| **HT**   | same height        | within 2 inches              | otherwise                                                   |
+| **AGE**  | same age           | within 2 years               | otherwise                                                   |
+| **NO.**  | same jersey        | within 3 (also `0` vs `00`)  | otherwise                                                   |
+| **NAT**  | same country       | same continent               | otherwise                                                   |
 
 On numeric tiles (HT, AGE, NO.) a pixel arrow shows whether the **secret** value is higher (up) or lower (down).
 
@@ -35,7 +39,7 @@ On numeric tiles (HT, AGE, NO.) a pixel arrow shows whether the **secret** value
 - **DAILY**: the same player for everyone on a given local date. Progress survives reloads. Stats (played, win %, streak, max streak, guess distribution) are tracked for daily games only.
 - **FREE PLAY**: random player, unlimited rounds, "NEW GAME" button.
 
-When a game ends, a dialog shows the player and a **SHARE** button that copies a spoiler-free grid:
+When a game ends, a dialog shows the player and a **SHARE** button. It opens a share menu with: the phone's native share sheet (when available), copy result, copy link, WhatsApp, Instagram (copies the result and opens the Instagram inbox, since Instagram has no prefill link), Telegram, X, Facebook (link only), e-mail and SMS (touch devices). The shared text is a spoiler-free grid:
 
 ```
 HOOPDLE #9 3/8
@@ -195,7 +199,8 @@ tests/               Vitest tests
 ## Design notes and decisions
 
 - **Look**: inspired by early handheld RPG menus, with all art drawn by hand as inline SVG pixel sprites (ball, arrows, cursor, speaker, silhouette). No logos, sprites or other third-party assets. Font: "Press Start 2P", self-hosted via `@fontsource/press-start-2p`.
-- **Themes**: classic 4-shade green (default) and a brighter colour palette (palette button in the top bar, remembered in localStorage).
+- **Themes**: blue colour-handheld palette (default) and the classic 4-shade green (palette button in the top bar, remembered in localStorage).
+- **Messages**: own basketball-themed lines (tip-off, airball, swish, buzzer...) in the retro dialogue box; no phrases borrowed from other games.
 - **Colour blindness**: besides colour, green tiles carry a check mark and yellow tiles a tilde; the three states also differ clearly in lightness.
 - **Rows**: the newest guess is always on top.
 - **Headshots** (`cdn.nba.com`) are only shown in the end dialog, drawn into a 52x38 canvas and scaled up for a pixel look. If the image fails to load, a pixel silhouette is shown.
